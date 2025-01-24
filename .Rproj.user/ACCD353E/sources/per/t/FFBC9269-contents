@@ -1,0 +1,18 @@
+# scranpy 
+
+
+import singlecellexperiment
+sce = singlecellexperiment.read_tenx_h5("/home/ilaria/Downloads/pbmc4k-tenx.h5")
+
+import scranpy
+options = scranpy.AnalyzeOptions()
+options.per_cell_rna_qc_metrics_options.subsets = {
+    "mito": scranpy.guess_mito_from_symbols(sce.row_data["name"], "mt-")
+}
+results = scranpy.analyze_sce(sce, options=options)
+
+
+# NotImplementedError: 
+# tatamize is not supported for 
+# objects of class: <class 
+# 'hdf5array.Hdf5CompressedSparseMatrixSeed.Hdf5CompressedSparseMatrixSeed'>

@@ -1,0 +1,12 @@
+# Ignore R project files
+*.Rproj
+.Rproj.user/
+
+# Ignore temporary files
+*.Rhistory
+*.Rdata
+
+# Ignore build artifacts
+*.html
+*.pdf
+*.docx

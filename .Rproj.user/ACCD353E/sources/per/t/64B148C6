@@ -1,0 +1,29 @@
+{
+    "id": "64B148C6",
+    "path": "~/Documents/ImageAnalysisVignette/vignettes/ImageAnalysisVignette.Rmd",
+    "project_path": "vignettes/ImageAnalysisVignette.Rmd",
+    "type": "r_markdown",
+    "hash": "3248018323",
+    "contents": "",
+    "dirty": false,
+    "created": 1737139438885.0,
+    "source_on_save": false,
+    "relative_order": 12,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "144,0",
+        "scrollLine": "0",
+        "chunk_output_type": "inline",
+        "docOutlineVisible": "1"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1737144163,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1737144163071,
+    "read_only": false,
+    "read_only_alternatives": []
+}

@@ -1,0 +1,556 @@
+---
+  title: "Large Single Cell Workflow"
+author: 
+  - name: Ilaria Billato
+affiliation: Department of Biology, University of Padova
+email: ilaria.billato@phd.unipd.it
+- name: Marcel Ramos
+affiliation: ISPH - CUNY
+- name: Levi Waldron
+affiliation: ISPH - CUNY
+- name: Gabriele Sales
+affiliation: Department of Biology, University of Padova
+- name: Chiara Romualdi
+affiliation: Department of Biology, University of Padova
+- name: Davide Risso
+affiliation: Department of Statistical Sciences, University of Padova
+abstract: With the exponential growth in the size and complexity of single-cell RNA-seq data, traditional workflows are becoming increasingly computationally intensive. Existing tools often need help to efficiently handle such large datasets, frequently running out of memory. To address this challenge, the adoption of more efficient algorithms and out-of-memory data representations is crucial for effective analysis. This study presents a comprehensive comparison of various workflows for single-cell data analysis, evaluating their performance and efficacy within both R and Python programming environments. Specifically, we assess the capabilities of Seurat and Bioconductor in R, and Scanpy and rapids_singlecell in Python, with a focus on their utilization of both Central Processing Units (CPUs) and Graphics Processing Units (GPUs) for optimising computational efficiency. Utilising a diverse set of real single-cell RNA-seq datasets, including approximately 1.3 million cells from the mouse brain, BE1, sc_mixology, and cord blood datasets, we expanded the benchmarking to encompass the entire workflow of single-cell analysis. This comprehensive evaluation enabled us to assess the scalability of the workflows across different datasets. Recognizing the need for optimized workflows within the Bioconductor framework to handle large single-cell RNA-seq data, we developed a vignette featuring the most efficient methods in terms of scalability, computational time, and memory usage. This vignette serves as a valuable resource for researchers working with large single-cell RNA-seq datasets within the Bioconductor ecosystem.
+
+
+
+
+
+bibliography: bibliography.bib
+date: 15 Nov 2024
+output: 
+  BiocStyle::html_document:
+  fig_caption: true
+self_contained: yes
+vignette: >
+  %\VignetteIndexEntry{A workflow for deal with large single-cell RNA-Seq data analysis}
+%\VignetteEncoding{UTF-8}
+%\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: inline
+markdown: 
+  wrap: 72
+---
+  
+  <p>**R version**: `r R.version.string` <br /> **Bioconductor version**:
+  `r BiocManager::version()` <br /> **Package version**:
+  `r packageVersion("BiocParallel")`</p>
+  
+  ```{r, echo=FALSE, results="hide", warning=FALSE}
+suppressPackageStartupMessages({
+  library(MultiAssayExperiment)
+  library(SingleCellMultiModal)
+  library(SingleCellExperiment)
+  library(scuttle)
+  library(AnnotationDbi)
+  library(scran)
+  library(scater)
+  library(mclust)
+  library(bluster)
+  library(HDF5Array)
+  library(DelayedArray)
+  library(BiocSingular)
+  library(EnsDb.Mmusculus.v79)
+  library(org.Mm.eg.db)
+  library(BiocParallel)
+  library(scrapper)
+  
+})
+```
+
+```{r}
+library(MultiAssayExperiment)
+library(SingleCellMultiModal)
+library(SingleCellExperiment)
+library(scuttle)
+library(AnnotationDbi)
+library(scran)
+library(scater)
+library(mclust)
+library(bluster)
+library(HDF5Array)
+library(DelayedArray)
+library(BiocSingular)
+library(EnsDb.Mmusculus.v79)
+library(org.Mm.eg.db)
+library(BiocParallel)
+library(scrapper)
+```
+
+# Introduction
+
+The field of single-cell genomics has witnessed exponential growth,
+particularly with the advent of large-scale single-cell datasets. While
+traditional analysis methods are well-suited for smaller datasets, they
+often encounter computational and resource challenges when applied to
+larger datasets. In this workflow, we will provide strategies to
+alleviate these challenges and enable seamless analysis of large
+single-cell datasets, ensuring efficient and effective data processing
+without compromising computational time or resources.
+
+Analyzing large single-cell data poses several challenges:
+  
+  -   **Computational Challenges:** Processing power, storage, and
+multiple CPUs are required due to the large dataset sizes, making it
+challenging for standard office laptops to handle the requirements
+
+-   **Data Sparsity:** Handling sparsity in single-cell RNA sequencing
+data is a significant challenge, as it requires a comprehensive
+characterization of the data to extract meaningful biological
+insights
+
+-   **Uncertainty:** Single-cell data is more uncertain due to the low
+input material per cell, leading to measurement uncertainty and
+missing data. Capturing and quantifying these uncertainties for
+downstream statistical analyses is crucial
+
+-   **Integration of Data:** Integrating single-cell data across
+samples, experiments, and types of measurement is complex. It
+requires flexible and rigorous statistical and computational
+frameworks to comprehensively analyze biological processes that vary
+across cells and organisms.
+
+These challenges underscore the complexity and intricacies involved in
+analyzing large single-cell data, emphasizing the need for advanced
+computational tools, statistical methodologies, and interdisciplinary
+collaboration to derive meaningful insights from these datasets.
+
+#Efficient Memory Usage When working with large single-cell datasets,
+it's crucial to utilize memory efficiently. Employ compact data
+structures like SingleCellExperiment and DelayedArray to minimize memory
+consumption.
+
+# Type of matrix
+
+-   Dense Matrix: A matrix where most elements are non-zero, typically stored in 
+a contiguous block of memory.
+-   Sparse Matrix: A matrix where most elements are zero, stored efficiently using specialized data structures to save memory.
+-   HDF5: A file format and software library for storing and managing large amounts of data, often used for storing single-cell data.
+-   TileDB: An open-source data management framework that provides a fast and efficient way to store and query large, sparse, multi-dimensional data arrays.
+-   H5ad: A file format based on HDF5 that is commonly used for storing single-cell data, including gene expression matrices and metadata. Through H5ad files, researchers can seamlessly share datasets between R and Python, allowing for collaborative analysis and the utilization of a wide range of tools and algorithms available in both languages. This interoperability promotes reproducibility and facilitates the adoption of best practices across different computational environments and research communities. the zellkonverter package is designed for converting between SingleCellExperiment objects and alternative objects used for storing single-cell RNA-sequencing data, such as AnnData. It is built on top of the basilisk package and provides methods to convert between Python AnnData objects and SingleCellExperiment objects.
+-   DelayedArray:  DelayedArray is like an ordinary array in R, but allows for the data to be in-memory, on-disk in a file, or even hosted on a remote server. 
+
+# 1.3 Million cell data
+
+
+
+In 2017 10xGenomics announced their 1.3 Million Brain Cell Dataset,
+which is, to date, the largest dataset published in the single cell
+RNA-sequencing (scRNA-seq) field. Using the Chromium™ Single Cell 3'
+Solution (v2 Chemistry), they were able to sequence and profile
+1,308,421 individual cells from embryonic mice brains.
+
+Cells from the cortex, hippocampus and ventricular zone of two embryonic
+mice were dissociated following the Demonstrated Protocol for Mouse
+Embryonic Neural Tissue and used to create 133 scRNA-Seq libraries. The
+samples were then sequenced on 11 Illumina Hiseq 4000 flow cells,
+resulting in a read-depth of approximately 18,500 reads per cell. The
+sequencing data were processed by Cell Ranger 1.2 to generate single
+cell expression profile of 1,308,421 cells as well as the clustering and
+differential gene expression analysis.
+https://www.10xgenomics.com/videos/1nh25n46oi
+
+Cells are at the core of every living organism and, as such,
+understanding the fundamental components of life is key to understanding
+complex biological systems. The ability to profile a large number of
+cells is becoming increasingly important for rare cell detection, and
+for comprehensive classification of biological systems. However,
+existing scRNA-seq methods have limited throughput and lack scalable
+computational analysis tools. With the flexible throughput of the
+Chromium Single Cell 3' Solution, the scalable Cell Ranger™ 1.3 analysis
+pipeline and Loupe™ Cell Browser visualization tool, it is now possible
+to start considering large-scale scRNA-seq experiments.
+
+The single-cell RNA-seq dataset comprises information from 1.3 million
+brain cells isolated from E18 mice and was generated using the 10X
+Genomics platform. This dataset provides a comprehensive molecular
+profile of individual cells, allowing for the exploration of gene
+expression patterns at a single-cell resolution. The utilization of 10X
+Genomics technology involves cell barcoding and RNA sequencing at the
+single-cell level, enabling the identification of unique cellular
+signatures and facilitating the investigation of cellular heterogeneity
+within the developing mouse brain at embryonic day 18 (E18).
+
+Million Cell Dataset defines a new standard for scaling up single cell
+analysis by orders of magnitude, opening up the possibility of tissue
+atlas studies that seek to comprehensively describe cellular subtypes
+and ultimately accelerate the characterization of all biological
+systems.
+
+# Load data
+
+You have the possiblity to load this data from TENxBrainData package or
+from the TENx website you can download .h5 file and load it on r.
+
+```{r eval=TRUE, include=TRUE}
+library(TENxBrainData)
+sce <- TENxBrainData()
+```
+
+Compute the analysis just as an example on a 20k cell marix to visualize the results. 
+
+```{r include=FALSE}
+library(TENxBrainData)
+sce <- TENxBrainData20k()
+sce
+counts(sce)
+```
+
+We can think of this (and other) class as a container, that contains
+several different pieces of data in so-called slots.
+
+The getter methods are used to extract information from the slots and
+the setter methods are used to add information into the slots. These are
+the only ways to interact with the objects (rather than directly
+accessing the slots).
+
+Depending on the object, slots can contain different types of data
+(e.g., numeric matrices, lists, etc.).
+
+# Droplets (decidere se tenerlo)
+
+```{r eval=TRUE, include=TRUE}
+library(DropletUtils)
+bcrank <- barcodeRanks(counts(sce))
+bcrank
+```
+
+# Quality control
+
+Retaining these low-quality samples in the analysis could be problematic
+as they could:form their own cluster, complicating the interpretation of the 
+results interfere with variance estimation and principal component analysis 
+contain contaminating transcripts from ambient RNA.
+To mitigate these problems, we can check a few quality-control metrics and, 
+if needed, remove low-quality samples.
+
+There are many possibile ways to define a set of quality-control
+metrics, see for instance Cole et al. (2019). Here, we keep it simple
+and consider only:
+
+-   the library size, defined as the total sum of counts across all
+    relevant features for each cell;
+-   the number of expressed features in each cell, defined as the number
+    of endogenous genes with non-zero counts for that cell;
+-   the proportion of reads mapped to genes in the mitochondrial genome.
+
+In particular, high proportions of mitochondrial genes are indicative of
+poor-quality cells, presumably because of loss of cytoplasmic RNA from
+perforated cells. The reasoning is that, in the presence of modest
+damage, the holes in the cell membrane permit efflux of individual
+transcript molecules but are too small to allow mitochondria to escape,
+leading to a relative enrichment of mitochondrial transcripts. For
+single-nucleus RNA-seq experiments, high proportions are also useful as
+they can mark cells where the cytoplasm has not been successfully
+stripped.
+
+First, we need to identify mitochondrial genes. We use the available
+EnsDb mouse package available in Bioconductor, but a more updated
+version of Ensembl can be used through the AnnotationHub or biomaRt
+packages. 
+
+```{r eval=TRUE, include=TRUE}
+
+rowData(sce)$Contains_mt <- grepl("mt", rowData(sce)$Symbol, ignore.case = TRUE)
+is.mito <- which(rowData(sce)$Contains_mt == TRUE )
+
+library(scuttle)
+df <- perCellQCMetrics(sce, subsets=list(Mito=is.mito))
+
+# include them in the object
+colData(sce) <- cbind(colData(sce), df)
+
+
+#we could look at the distribution of such metrics and use a data adaptive threshold.
+
+summary(df$detected)
+summary(df$subsets_Mito_percent)
+```
+
+This can be achieved with the perCellQCFilters function. By default, we consider a value to be an outlier if it is more than 3 median absolute deviations (MADs) from the median in the “problematic” direction. This is loosely motivated by the fact that such a filter will retain 99% of non-outlier values that follow a normal distribution.
+
+```{r eval=TRUE, include=TRUE}
+reasons <- perCellQCFilters(df, sub.fields="subsets_Mito_percent")
+colSums(as.matrix(reasons))
+summary(reasons$discard)
+# include in object
+sce$discard <- reasons$discard
+```
+
+## Diagnostic Plot 
+
+It is always a good idea to check the distribution of the QC metrics and to visualize the cells that were removed, to identify possible problems with the procedure. In particular, we expect to have few outliers and with a marked difference from “regular” cells (e.g., a bimodal distribution or a long tail). Moreover, if there are too many discarded cells, further exploration might be needed.
+
+```{r eval=TRUE, include=TRUE}
+library(scater)
+plotColData(sce, y = "sum", colour_by = "discard") + ggtitle("Total count")
+plotColData(sce, y = "detected", colour_by = "discard") + ggtitle("Detected features")
+plotColData(sce, y = "subsets_Mito_percent", colour_by = "discard") + ggtitle("Mito percent")
+```
+
+While the univariate distribution of QC metrics can give some insight on the quality of the sample, often looking at the bivariate distribution of QC metrics is useful, e.g., to confirm that there are no cells with both large total counts and large mitochondrial counts, to ensure that we are not inadvertently removing high-quality cells that happen to be highly metabolically active.
+
+```{r eval=TRUE, include=TRUE}
+plotColData(sce, x="sum", y="subsets_Mito_percent", colour_by="discard")
+```
+It could also be a good idea to perform a differential expression analysis between retained and discarded cells to check wether we are removing an unusual cell population rather than low-quality libraries (see Section 1.5 of OSCA advanced).
+
+Once we are happy with the results, we can discard the low-quality cells by subsetting the original object.
+
+```{r eval=TRUE, include=TRUE}
+sce <- sce[,!sce$discard]
+sce
+```
+
+# Normalization
+
+The simplest scaling method is the Count Per Million (CPM)
+transformation, which simply scales the observed read [or unique
+molecular identifiers (UMI)] counts by the total number of sequenced
+reads (or UMIs) per sample. CPM is scalable to millions of cells, its
+performance is not always optimal (Hafemeister and Satija, 2019;
+Robinson and Oshlack, 2010; Tian et al., 2019); on the other hand, more
+robust normalizations, such as scran and sctransform, require a large
+amount of time and/or memory in big datasets. PsiNorm, a scRNA-seq
+scaling normalization method, inspired by the Pareto power-law
+distribution proposed by Borella et al. show that it is the most
+scalable normalization among those that show good accuracy, being highly
+efficient in terms of memory usage and computational time. In
+particular, PsiNorm leads to comparable and sometimes better results in
+terms of clustering and cell markers detections than state-of-the-art
+methods, such as scran and Linnorm, that either take longer or need more
+RAM. Finally, the ability of PsiNorm to work with out-of-memory data,
+such as HDF5 files, allows it to efficiently normalize datasets that may
+not even fit in RAM memory.
+
+To use PsiNorm normalization you need scone library. In scone you can
+find a lot of different normalizatio.
+
+```{r eval=TRUE, include=TRUE}
+library(scone)
+# running the PsiNorm function computes a set of size factors that are added to the SingleCellExperiment object.
+
+#The logNormCounts function can be then used to normalize the data by multiplying the raw counts and the size factors.
+
+sce <- PsiNorm(sce)
+sce <- logNormCounts(sce)
+head(sizeFactors(sce))
+```
+
+```{r eval=TRUE, include=TRUE}
+set.seed(1234)
+sce<-runPCA(sce, 
+            exprs_values="logcounts", 
+            scale=TRUE, 
+            name = "PsiNorm_PCA", 
+            ncomponents = 2)
+
+plotReducedDim(sce, dimred = "PsiNorm_PCA", colour_by = "Mouse")
+```
+
+# Highly Variable Gene
+We want to select genes that contain useful information about the biology of the system while removing genes that contain only random noise. This aims to preserve interesting biological structure without the variance that obscures that structure, and to reduce the size of the data to improve computational efficiency of later steps.
+
+Some methods of single-cell data analysis may prove impractical or
+ineffective due to the nature of the sparse matrices used to represent
+gene expression data. Since single-cell datasets often contain thousands
+or even millions of genes, but most cells will only express a subset of
+these genes, resulting count matrices are sparse, with many zero values.
+This sparsity can make it challenging to apply some methods that are not
+optimized to work with sparse matrices, as they require processing large
+amounts of unnecessary data.
+
+This could one of your possible error: too many elements (>= 2^31) selected along dimension 1 of array
+
+However, to select the most relevant or significant genes for analysis,
+it is possible to proceed with targeted approaches that circumvent the
+issue associated with sparse matrices.
+
+```{r eval=TRUE, include=TRUE}
+top_hvg <- rowVars(counts(sce))
+
+top_hvg <- top_hvg[order(top_hvg, decreasing = TRUE)]
+gene_hvg <- names(top_hvg)[1:1000]
+rownames(sce) <- rowData(sce)$Symbol
+sce <- sce[ rownames(sce) %in% gene_hvg,]
+```
+
+# Dimesionality Reduction
+## Linear method: PCA
+
+Principal component analysis (PCA) is a dimensionality reduction technique that provides a parsimonious summarization of the data by replacing the original variables (genes) by fewer linear combinations of these variables, that are orthogonal and have successively maximal variance. Such linear combinations seek to “separate out” the observations (cells), while loosing as little information as possible.
+Principal Component Analysis (PCA) can be regarded as a primary bottleneck in single-cell analysis due to its computational demands, particularly concerning the Singular Value Decomposition (SVD) required. SVD is computationally intensive both in terms of time and memory, especially when dealing with large single-cell datasets. Since PCA is often employed as an initial step for dimensionality reduction and visualization of high-dimensional single-cell data, its computational requirements can significantly impact the efficiency and scalability of downstream analyses. As such, researchers must carefully consider the computational resources available and explore alternative dimensionality reduction techniques to mitigate the computational burden imposed by PCA in single-cell analysis workflows.
+```{r eval=FALSE, include=FALSE}
+sce <- BiocSingular::runPCA(sce#BPPARAM=BiocParallel::MulticoreParam(3), 
+                           # BSPARAM=BiocSingular::RandomParam()
+                           )
+sce <- BiocSingular::runPCA(sce, 10, BPPARAM=BiocParallel::MulticoreParam(2), BSPARAM=BiocSingular::RandomParam())
+
+sce
+```
+
+## Non-linear methods: t-SNE and UMAP
+While PCA is a simple and effective way to visualize (and interpret!) scRNA-seq data, non-linear methods such as t-SNE (t-stochastic neighbor embedding) and UMAP (uniform manifold approximation and projection) have gained much popularity in the literature.
+
+
+```{r eval=TRUE, include=TRUE}
+set.seed(100)
+sce <- runTSNE(sce, dimred="PsiNorm_PCA")
+
+nworkers <- 10
+sce <- scater::runTSNE(sce, dimred = "PsiNorm_PCA", 
+                         external_neighbors = TRUE,
+                         BNPARAM = BiocNeighbors::AnnoyParam(),
+                         BPPARAM = MulticoreParam(nworkers))
+
+plotTSNE(sce)
+```
+
+```{r eval=TRUE, include=TRUE}
+set.seed(111)
+
+# with no setting takes a lot of hours 
+# sce <- runUMAP(sce, dimred="PCA")
+
+nworkers <- 10
+sce <- scater::runUMAP(sce, dimred = "PsiNorm_PCA", 
+                         external_neighbors = TRUE,
+                         BNPARAM = BiocNeighbors::AnnoyParam(),
+                         BPPARAM = MulticoreParam(nworkers))
+plotUMAP(sce, color_by = "Mouse")
+
+```
+
+It is easy to over-interpret t-SNE and UMAP plots. We note that the relative sizes and positions of the visual clusters may be misleading, as they tend to inflate dense clusters and compress sparse ones, such that we cannot use the size as a measure of subpopulation heterogeneity.
+
+In addition, these methods are not guaranteed to preserve the global structure of the data (e.g., the relative locations of non-neighboring clusters), such that we cannot use their positions to determine relationships between distant clusters.
+
+Note that the sce object now includes all the computed dimensionality reduced representations of the data for ease of reusing and replotting without the need for recomputing.
+
+Despite their shortcomings, t-SNE and UMAP may be useful visualization techniques. When using them, it is important to consider that they are stochastic methods that involve a random component (each run will lead to different plots) and that there are key parameters to be set that change the results substantially (e.g., the “perplexity” parameter of t-SNE).
+
+# Fast Approximations
+# Clustering 
+Clustering is an unsupervised learning procedure that is used to empirically define groups of cells with similar expression profiles. Its primary purpose is to summarize complex scRNA-seq data into a digestible format for human interpretation. This allows us to describe population heterogeneity in terms of discrete labels that are easily understood, rather than attempting to comprehend the high-dimensional manifold on which the cells truly reside. After annotation based on marker genes, the clusters can be treated as proxies for more abstract biological concepts such as cell types or states.
+
+At this point, it is helpful to realize that clustering, like a microscope, is simply a tool to explore the data. We can zoom in and out by changing the resolution of the clustering parameters, and we can experiment with different clustering algorithms to obtain alternative perspectives of the data. This iterative approach is entirely permissible given that data exploration constitutes the majority of the scRNA-seq data analysis workflow. As such, questions about the “correctness” of the clusters or the “true” number of clusters are usually meaningless. We can define as many clusters as we like, with whatever algorithm we like - each clustering will represent its own partitioning of the high-dimensional expression space, and is as “real” as any other clustering.
+Regardless of the exact method used, clustering is a critical step for extracting biological insights from scRNA-seq data. 
+
+## Graph-based clustering
+Graph-based clustering is a flexible and scalable technique for clustering large scRNA-seq datasets. We first build a graph where each node is a cell that is connected to its nearest neighbors in the high-dimensional space. Edges are weighted based on the similarity between the cells involved, with higher weight given to cells that are more closely related. We then apply algorithms to identify “communities” of cells that are more connected to cells in the same community than they are to cells of different communities. Each community represents a cluster that we can use for downstream interpretation.
+The major advantage of graph-based clustering lies in its scalability. It only requires a k-nearest neighbor search that can be done in log-linear time on average, in contrast to hierachical clustering methods with runtimes that are quadratic with respect to the number of cells. Graph construction avoids making strong assumptions about the shape of the clusters or the distribution of cells within each cluster, compared to other methods like k-means (that favor spherical clusters) or Gaussian mixture models (that require normality). From a practical perspective, each cell is forcibly connected to a minimum number of neighboring cells, which reduces the risk of generating many uninformative clusters consisting of one or two outlier cells.
+The main drawback of graph-based methods is that, after graph construction, no information is retained about relationships beyond the neighboring cells1. This has some practical consequences in datasets that exhibit differences in cell density, as more steps through the graph are required to move the same distance through a region of higher cell density. From the perspective of community detection algorithms, this effect “inflates” the high-density regions such that any internal substructure or noise is more likely to cause formation of subclusters. The resolution of clustering thus becomes dependent on the density of cells, which can occasionally be misleading if it overstates the heterogeneity in the data.
+
+In OSCA (Basic Section 5.2) they clustered on a shared nearest neighbor graph generated with an exact neighbour search. We repeat this below using an approximate search, implemented using the Annoy algorithm. This involves constructing a AnnoyParam object to specify the search algorithm and then passing it to the buildSNNGraph() function. The results from the exact and approximate searches are consistent with most clusters from the former re-appearing in the latter. This suggests that the inaccuracy from the approximation can be largely ignored.
+
+```{r eval=TRUE, include=TRUE}
+library(scran)
+library(BiocNeighbors)
+snn.gr <- buildSNNGraph(sce, BNPARAM=AnnoyParam(), use.dimred="PsiNorm_PCA")
+
+# cluster walktrap
+clusters <- igraph::cluster_walktrap(snn.gr)
+#table(Exact=colLabels(sce), Approx=clusters$membership)
+
+colLabels(sce) <- clusters
+plotReducedDim(sce, "TSNE", colour_by="clusters")
+
+# cluster louvain
+clusters <- igraph::cluster_louvain(snn.gr)
+table(Exact=colLabels(sce), Approx=clusters$membership)
+
+colLabels(sce) <- clusters
+plotReducedDim(sce, "TSNE", colour_by="label")
+
+# cluster leiden
+clusters <- igraph::cluster_leiden(snn.gr)
+table(Exact=colLabels(sce), Approx=clusters$membership)
+
+colLabels(sce) <- clusters
+plotReducedDim(sce, "TSNE", colour_by="label")
+```
+
+Note that Annoy writes the NN index to disk prior to performing the search. Thus, it may not actually be faster than the default exact algorithm for small datasets, depending on whether the overhead of disk write is offset by the computational complexity of the search. It is also not difficult to find situations where the approximation deteriorates, especially at high dimensions, though this may not have an appreciable impact on the biological conclusions.
+
+```{r eval=TRUE, include=TRUE}
+set.seed(1000)
+y1 <- matrix(rnorm(50000), nrow=1000)
+y2 <- matrix(rnorm(50000), nrow=1000)
+Y <- rbind(y1, y2)
+exact <- findKNN(Y, k=20)
+approx <- findKNN(Y, k=20, BNPARAM=AnnoyParam())
+mean(exact$index!=approx$index)
+```
+
+## mbkemeans
+The mbkmeans algorithm is a fast clustering method for single-cell data implemented in Bioconductor. It utilizes the mini-batch k-means algorithm, which processes small, random subsamples of data (mini-batches) instead of the entire dataset, enhancing computational speed and reducing memory usage. This approach allows for scalability with large datasets, as it only loads the necessary data for each batch, making it suitable for both in-memory and on-disk data representations like HDF5 matrices. The mbkmeans package in Bioconductor provides an open-source implementation of this algorithm, offering improved performance across various dataset sizes, including real single-cell datasets.
+
+```{r eval=TRUE, include=TRUE}
+library(mbkmeans)
+library(DelayedMatrixStats)
+
+res <- mbkmeans(sce1000, clusters = 5,
+                reduceMethod = NA,
+                whichAssay = "logcounts")
+```
+
+The number of clusters (such as k in the k-means algorithm) is set through the clusters argument. In this case, we set clusters = 5 for no particular reason. For SingleCellExperiment objects, the function provides the reduceMethod and whichAssay arguments. The reduceMethod argument should specify the dimensionality reduction slot to use for the clustering, and the default is “PCA”. Note that this does not perform PCA but only looks at a slot called “PCA” already stored in the object. Alternatively, one can specify whichAssay as the assay to use as input to mini-batch k-means. This is used only when reduceMethod option is NA.
+
+# Parallelization 
+Parallelization of calculations across genes or cells is an obvious strategy for speeding up scRNA-seq analysis workflows.
+
+The BiocParallel package provides a common interface for parallel computing throughout the Bioconductor ecosystem, manifesting as a BPPARAM argument in compatible functions. We can also use BiocParallel with more expressive functions directly through the package’s interface.
+
+```{r}
+library(BiocParallel)
+```
+
+# Interaction with HPC
+
+When conducting computationally intensive analyses on large datasets,
+consider leveraging external resources such as cloud servers or HPC
+clusters to distribute the computational workload.
+For high-performance computing (HPC) systems with a cluster of compute nodes, we can distribute jobs via the job scheduler using the BatchtoolsParam class. The example below assumes a SLURM cluster, though the settings can be easily configured for a particular system (see here for details).
+
+Parallelization is best suited for CPU-intensive calculations where the division of labor results in a concomitant reduction in compute time. It is not suited for tasks that are bounded by other compute resources, e.g., memory or file I/O (though the latter is less of an issue on HPC systems with parallel read/write). In particular, R itself is inherently single-core, so many of the parallelization backends involve (i) setting up one or more separate R sessions, (ii) loading the relevant packages and (iii) transmitting the data to that session. Depending on the nature and size of the task, this overhead may outweigh any benefit from parallel computing.
+
+
+
+
+
+```{r sessionInfo}
+sessionInfo()
+```
+
+# Software availability
+
+All software packages used in this workflow are publicly available from
+the Comprehensive R Archive Network (<https://cran.r-project.org>) or
+the Bioconductor project (<http://bioconductor.org>). The specific
+version numbers of the packages used are shown below, along with the
+version of the R installation.
+
+```{r eval=TRUE, include=FALSE, results='asis'}
+#{r, results = 'asis', eval = !on.bioc, echo = FALSE}
+cat("Version numbers of all the Bioconductor packages correspond to the release version 3.19 of the Bioconductor project.")
+```
+
+```{r eval=TRUE, include=FALSE, results='asis'}
+#{r, results = 'asis', eval = !on.bioc, echo = FALSE}
+cat("Users can install all required packages and execute the workflow by following the instructions at https://www.bioconductor.org/packages/nomedscegliere")
+```
+
+# Competing interests
+
+No competing interests were disclosed.
+
+# Acknowledgments
+
+The authors wish to thank members of the Romualdi, Calura, Sales, Levi
+and Risso groups from the Department of Biology and form CUNY for
+helpful discussions.
+

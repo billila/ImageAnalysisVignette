@@ -1,0 +1,153 @@
+---
+title: "Image Analysis Vignette"
+author: 
+- name: Ilaria Billato
+  affiliation: Department of Biology, University of Padova
+  email: ilaria.billato@phd.unipd.it
+- name: Marcel Ramos
+  affiliation: ISPH - CUNY
+- name: Sean Davis
+  affiliation: ISPH - CUNY
+- name: Mohamed Omar
+  affiliation: ISPH - CUNY
+- name: Lucio R. Queiroz
+  affiliation: Cornell
+- name: Luigi Marchionni
+  affiliation: Cornell
+- name: Herve Pages 
+  affiliation: ISPH - CUNY
+- name: Vince Carey 
+  affiliation: ISPH - CUNY
+- name: Levi Waldron
+  affiliation: ISPH - CUNY
+- name: Sehyun Oh
+  affiliation: ISPH - CUNY
+- name: Davide Risso
+  affiliation: Department of Statistical Sciences, University of Padova
+- name: Chiara Romualdi
+  affiliation: Department of Biology, University of Padova
+
+abstract: wòkjebfòksd
+
+bibliography: bibliography.bib
+date: 17 Jan 2025
+output: 
+  BiocStyle::html_document:
+  fig_caption: true
+  self_contained: yes
+vignette: >
+  %\VignetteIndexEntry{A workflow for deal with large single-cell RNA-Seq data analysis}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: inline
+markdown: 
+  wrap: 72
+---
+  
+# Version Info
+```{r, echo=FALSE, results="hide", warning=FALSE}
+#suppressPackageStartupMessages({library('variants')})
+```
+
+<p>**R version**: `r R.version.string` <br /> **Bioconductor version**:
+`r BiocManager::version()` <br /> **Package version**:
+`r packageVersion("BiocParallel")`</p>
+
+# Introduction 
+This vignette provides an overview of the workflow for analyzing high-resolution diagnostic images and features derived from TCGA datasets, using modern computational tools.
+
+# TCGA Data 
+
+The images can be downloaded using the `GDCdatacommon` package with the following code:
+
+```{r, eval=FALSE}
+# Example GDCdatacommon code for downloading images
+library(GDCdatacommon)
+gdc_download(
+  ids = "your_image_ids_here",
+  directory = "path_to_save"
+)
+```
+
+
+spigare da dove escono le diagnostic  alta risoluzione e spiegare la differenza con quelle a bassa risoluzione.
+
+
+
+
+# imageTCGA 
+
+The `imageTCGA` is a Shiny application package designed for interactive visualization and management of image metadata. It provides:
+- Dynamic tables with image information.
+- Download options for selected images.
+
+
+# HoVer-Net 
+
+
+## Introduction
+
+HoVer-Net is a state-of-the-art deep learning model for cell segmentation and classification. The input to HoVer-Net is `.svs` format images, typically derived from H&E-stained slides. HoVer-Net is based on the **Pancancer Atlas** and leverages modern neural network architectures to achieve precise segmentation and classification.
+
+## Outputs
+
+### JSON Structure Explanation
+![Example of HoVer-Net Output](hovernet_output.png)
+
+- **mag**: This typically indicates the magnification level of the slide. In this case, it's set to 40.
+
+- **nuc**: This is a dictionary containing the detected nuclei. Each key (like 1, 2, etc.) represents a unique nucleus detected in the image.
+
+Each nucleus entry contains:
+
+  - **bbox**: The bounding box coordinates of the nucleus, represented as two points (top-left and bottom-right).
+  - **centroid**: The coordinates of the centroid of the nucleus, which is the center point calculated based on the contour.
+  - **contour**: A list of points that outline the shape of the nucleus. This is useful for visualizing the exact shape and boundaries of the detected nucleus.
+  - **type_prob**: The probability associated with the type of the nucleus, indicating the model's confidence in its classification.
+  - **type**: This typically represents the class label assigned to the nucleus (e.g., different types of cells or states).
+
+#### Example Interpretation
+For example, for nucleus "1":
+
+- **Bounding Box**: The nucleus is located within the coordinates given by `[[15892, 64768], [15912, 64804]]`.
+- **Centroid**: The center of this nucleus is at `[15633, 65054]`.
+- **Contour**: The shape of the nucleus is defined by the series of points listed in the "contour" array.
+- **Type Probability**: The model is very confident (close to 1.0) that this is of type 3.
+- **Type**: Type 3. HoVer-Net was used on patches from each class separately to segment and classify the nuclei into 5 different types: benign epithelial, neoplastic, inflammatory/immune, necrotic, and stromal.
+
+
+All computations for HoVer-Net were performed on the **Jetstream Cloud Platform**.
+
+## Feature Extraction
+The extracted features include:
+
+- **Cell counts**
+- **Cell type distributions**
+- **Spatial patterns**
+
+Features are stored in an `.h5ad` format for downstream single-cell and spatial analyses.
+
+# Prov-Giga Path 
+
+## Introduction 
+Prov-Giga Path is a framework designed for embedding diagnostic image data into lower-dimensional spaces for visualization and analysis. 
+
+## Embeddings
+Embeddings are generated using unsupervised learning techniques, optimized for high-resolution pathology data.
+
+# Case Study 
+
+## Purity and Ploidy 
+Data for tumor purity and ploidy were downloaded from TCGA. The analysis correlates these metrics with imaging features to understand tumor heterogeneity.
+
+da dove il download 
+
+## Case Study 1: Ovarian Cancer
+This section presents a comprehensive analysis of ovarian cancer imaging data, focusing on the correlation between image-derived features and clinical outcomes.
+
+## Case Study 2: Prostate Cancer
+A similar analysis for prostate cancer, highlighting differences in imaging features across tumor subtypes.
+
+
+

@@ -1,0 +1,32 @@
+library(scrapper)
+library(DelayedArray)
+
+nthreads <- 2
+
+sce <- sce[!duplicated(rowData(sce)$Symbol), ]
+counts <- DelayedArray(assay(sce))
+rownames(counts) <- rowData(sce)$Symbol
+is.mito <- grepl("^mt-", rownames(counts))
+rna.qc.metrics <- computeRnaQcMetrics(counts, subsets=list(mt=is.mito), 
+                                      num.threads=nthreads)
+
+rna.qc.thresholds <- suggestRnaQcThresholds(rna.qc.metrics)
+rna.qc.filter <- filterRnaQcMetrics(rna.qc.thresholds, rna.qc.metrics)
+
+filtered <- counts[,rna.qc.filter,drop=FALSE]
+size.factors <- centerSizeFactors(rna.qc.metrics$sum[rna.qc.filter])
+normalized <- normalizeCounts(filtered, size.factors)
+
+gene.var <- modelGeneVariances(normalized, num.threads=nthreads)
+top.hvgs <- chooseHighlyVariableGenes(gene.var$statistics$residuals, top = 1000)
+pca <- runPca(normalized[top.hvgs,], num.threads=nthreads)
+
+umap.out <- runUmap(pca$components, num.threads=nthreads)
+tsne.out <- runTsne(pca$components, num.threads=nthreads)
+plot(tsne.out[,1], tsne.out[,2], pch=clust.out$membership)
+snn.graph <- buildSnnGraph(pca$components, num.threads=nthreads)
+clust.out <- clusterGraph(snn.graph)
+
+
+# pca usare quello che per noi era la migliore 
+# usare scrapper per quelli più veloci 
