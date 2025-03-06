@@ -157,6 +157,7 @@ The extracted features include:
 
 Features are stored in an `.h5ad` format for downstream single-cell and spatial analyses.
 
+
 # Prov-Giga Path 
 
 ## Introduction 
@@ -174,6 +175,17 @@ Embeddings are generated using unsupervised learning techniques, optimized for h
 
 Data for tumor purity were downloaded from @aran2015systematic. 
 Tumour purity is the proportion of cancer cells in the admixture. Until recently, it was estimated by a pathologist, primarily by visual or image analysis of tumour cells. With the advancement of genomic technologies, many new computational methods have arisen to infer tumour purity. These methods make estimates using different types of genomic information, such as gene expression, somatic copy-number variation, somatic mutations, and DNA methylation.
+
+
+@aran2015systematic compared purity estimates using four methods:
+
+* ESTIMATE, which uses gene expression profiles of 141 immune genes and 141 stromal genes.
+* ABSOLUTE, which relies on somatic copy-number data (estimates were available for only 11 cancer types).
+* LUMP (Leukocytes Unmethylation for Purity), which averages 44 non-methylated immune-specific CpG sites.
+* IHC, estimated through image analysis of H&E-stained slides.
+* CPE (Consensus Measurement of Purity Estimations), which represents the median purity level after normalizing estimates from all methods to ensure equal means and standard deviations (75.3±18.9%). Since some samples lacked measurements from all four methods, CPE was restricted to samples with at least two available measurements.
+
+From the Hovernet output, we compute purity as the ratio of nuclei classified as neoplastic to the total number of nuclei in an image. This count is obtained from the JSON output.
 
 ### Ploidy 
 

@@ -10,7 +10,7 @@
 
 
 
-<meta name="date" content="2025-01-22" />
+<meta name="date" content="2025-03-06" />
 
 <title>Image Analysis Vignette</title>
 
@@ -736,7 +736,7 @@ function toggle_visibility(id1) {
 <p class="author-name">Ilaria Billato<span class="affil-mark">1*</span>, Marcel Ramos<span class="affil-mark">2</span>, Sean Davis<span class="affil-mark">3</span>, Mohamed Omar<span class="affil-mark">4</span>, Lucio R. Queiroz<span class="affil-mark">5</span>, Luigi Marchionni<span class="affil-mark">5</span>, Hervé Pagès<span class="affil-mark">6</span>, Vince J. Carey<span class="affil-mark">7</span>, Levi Waldron<span class="affil-mark">2</span>, Sehyun Oh<span class="affil-mark">2</span>, Davide Risso<span class="affil-mark">8</span> and Chiara Romualdi<span class="affil-mark">1</span></p>
 <p class="author-affiliation"><span class="affil-mark">1</span>Department of Biology, University of Padova, Padova, Italy<br><span class="affil-mark">2</span>Graduate School of Public Health and Health Policy, City University of New York, New York, NY, USA<br><span class="affil-mark">3</span>Department of Biomedical Informatics, University of Colorado Anschutz Medical Campus, Aurora, USA<br><span class="affil-mark">4</span>Cedars-Sinai Medical Center<br><span class="affil-mark">5</span>Department of Pathology and Laboratory Medicine, Weill Cornell Medicine, New York, NY, USA<br><span class="affil-mark">6</span>Fred Hutchinson Cancer Research Center, Seattle, WA, USA<br><span class="affil-mark">7</span>Channing Division of Network Medicine, Brigham And Women’s Hospital, Boston, MA, USA<br><span class="affil-mark">8</span>Department of Statistical Sciences, University of Padova, Padova, Italy</p>
 <p class="author-email"><span class="affil-mark">*</span><a href="mailto:ilaria.billato@phd.unipd.it">ilaria.billato@phd.unipd.it</a></p>
-<h4 class="date">22 Jan 2025</h4>
+<h4 class="date">06 Mar 2025</h4>
 <h4 class="abstract">Abstract</h4>
 This vignette outlines a workflow for analyzing high-resolution histopathological images and features from The Cancer Genome Atlas (TCGA). It integrates Python-based tools with R/Bioconductor to extract, store, and analyze features like cell counts and spatial patterns. The imageTCGA Shiny app enables interactive exploration, filtering, and visualization of data. Case studies demonstrate the repository’s potential for advancing cancer research through integrated histopathology and multi-omics analyses.
 
@@ -788,7 +788,7 @@ This vignette outlines a workflow for analyzing high-resolution histopathologica
 <div id="version-info" class="section level1" number="1">
 <h1><span class="header-section-number">1</span> Version Info</h1>
 <p>
-<strong>R version</strong>: R version 4.4.2 (2024-10-31) <br /> <strong>Bioconductor version</strong>:
+<strong>R version</strong>: R version 4.4.3 (2025-02-28) <br /> <strong>Bioconductor version</strong>:
 3.20 <br /> <strong>Package version</strong>:
 1.40.0
 </p>
@@ -914,6 +914,15 @@ Follow this link for setting a reproducible enviroment: <a href="https://github.
 <h3><span class="header-section-number">7.1.1</span> Purity</h3>
 <p>Data for tumor purity were downloaded from <span class="citation">Aran, Sirota, and Butte (<a href="#ref-aran2015systematic" role="doc-biblioref">2015</a>)</span>.
 Tumour purity is the proportion of cancer cells in the admixture. Until recently, it was estimated by a pathologist, primarily by visual or image analysis of tumour cells. With the advancement of genomic technologies, many new computational methods have arisen to infer tumour purity. These methods make estimates using different types of genomic information, such as gene expression, somatic copy-number variation, somatic mutations, and DNA methylation.</p>
+<p><span class="citation">Aran, Sirota, and Butte (<a href="#ref-aran2015systematic" role="doc-biblioref">2015</a>)</span> compared purity estimates using four methods:</p>
+<ul>
+<li>ESTIMATE, which uses gene expression profiles of 141 immune genes and 141 stromal genes.</li>
+<li>ABSOLUTE, which relies on somatic copy-number data (estimates were available for only 11 cancer types).</li>
+<li>LUMP (Leukocytes Unmethylation for Purity), which averages 44 non-methylated immune-specific CpG sites.</li>
+<li>IHC, estimated through image analysis of H&amp;E-stained slides.</li>
+<li>CPE (Consensus Measurement of Purity Estimations), which represents the median purity level after normalizing estimates from all methods to ensure equal means and standard deviations (75.3±18.9%). Since some samples lacked measurements from all four methods, CPE was restricted to samples with at least two available measurements.</li>
+</ul>
+<p>From the Hovernet output, we compute purity as the ratio of nuclei classified as neoplastic to the total number of nuclei in an image. This count is obtained from the JSON output.</p>
 </div>
 <div id="ploidy" class="section level3" number="7.1.2">
 <h3><span class="header-section-number">7.1.2</span> Ploidy</h3>
